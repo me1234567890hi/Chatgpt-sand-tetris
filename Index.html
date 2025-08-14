@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sand Tetris</title>
+<style>
+  body {
+    background: #0b0f1a;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    color: white;
+    font-family: sans-serif;
+  }
+  canvas {
+    background: #111827;
+    border: 2px solid #374151;
+    border-radius: 8px;
+  }
+</style>
+</head>
+<body>
+<canvas id="game" width="300" height="600"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const COLS = 10;
+const ROWS = 20;
+const CELL = 30;
+const grid = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+
+const shapes = {
+  I: [[1,1,1,1]],
+  O: [[1,1],[1,1]],
+  T: [[0,1,0],[1,1,1]],
+  S: [[0,1,1],[1,1,0]],
+  Z: [[1,1,0],[0,1,1]],
+  J: [[1,0,0],[1,1,1]],
+  L: [[0,0,1],[1,1,1]]
+};
+
+const colors = ['#000','#60a5fa','#facc15','#a78bfa','#34d399','#f87171','#93c5fd','#fb923c'];
+
+let piece = null;
+let nextDrop = 0;
+let dropInterval = 500;
+
+function newPiece() {
+  const types = Object.keys(shapes);
+  const type = types[Math.floor(Math.random()*types.length)];
+  return {
+    shape: shapes[type].map(r=>[...r]),
+    color: colors[Object.keys(shapes).indexOf(type)+1],
+    x: Math.floor(COLS/2)-1,
+    y: 0
+  };
+}
+
+function collides(p, offX=0, offY=0) {
+  for (let y=0;y<p.shape.length;y++) {
+    for (let x=0;x<p.shape[y].length;x++) {
+      if (p.shape[y][x]) {
+        let nx = p.x + x + offX;
+        let ny = p.y + y + offY;
+        if (nx<0 || nx>=COLS || ny>=ROWS) return true;
+        if (ny>=0 && grid[ny][nx]) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function mergePiece(p) {
+  for (let y=0;y<p.shape.length;y++) {
+    for (let x=0;x<p.shape[y].length;x++) {
+      if (p.shape[y][x]) {
+        grid[p.y+y][p.x+x] = p.color;
+      }
+    }
+  }
+}
+
+function clearLines() {
+  for (let y=ROWS-1;y>=0;y--) {
+    if (grid[y].every(v=>v)) {
+      for (let ty=y;ty>0;ty--) grid[ty] = [...grid[ty-1]];
+      grid[0] = Array(COLS).fill(0);
+      y++;
+    }
+  }
+}
+
+function updateSand() {
+  // Make any floating blocks fall like sand
+  for (let y=ROWS-2;y>=0;y--) {
+    for (let x=0;x<COLS;x++) {
+      if (grid[y][x] && !grid[y+1][x]) {
+        grid[y+1][x] = grid[y][x];
+        grid[y][x] = 0;
+      }
+    }
+  }
+}
+
+function drop() {
+  if (!collides(piece,0,1)) {
+    piece.y++;
+  } else {
+    mergePiece(piece);
+    clearLines();
+    updateSand();
+    piece = newPiece();
+    if (collides(piece,0,0)) {
+      // Game over
+      for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) grid[y][x]=0;
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for (let y=0;y<ROWS;y++) {
+    for (let x=0;x<COLS;x++) {
+      ctx.fillStyle = grid[y][x] || '#111827';
+      ctx.fillRect(x*CELL, y*CELL, CELL-1, CELL-1);
+    }
+  }
+  if (piece) {
+    for (let y=0;y<piece.shape.length;y++) {
+      for (let x=0;x<piece.shape[y].length;x++) {
+        if (piece.shape[y][x]) {
+          ctx.fillStyle = piece.color;
+          ctx.fillRect((piece.x+x)*CELL, (piece.y+y)*CELL, CELL-1, CELL-1);
+        }
+      }
+    }
+  }
+}
+
+function loop(ts) {
+  if (ts - nextDrop > dropInterval) {
+    drop();
+    nextDrop = ts;
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key==='ArrowLeft' && !collides(piece,-1,0)) piece.x--;
+  if (e.key==='ArrowRight' && !collides(piece,1,0)) piece.x++;
+  if (e.key==='ArrowDown') drop();
+  if (e.key==='ArrowUp') {
+    const rotated = piece.shape[0].map((_,i) => piece.shape.map(r => r[i]).reverse());
+    const oldShape = piece.shape;
+    piece.shape = rotated;
+    if (collides(piece,0,0)) piece.shape = oldShape;
+  }
+});
+
+piece = newPiece();
+loop();
+</script>
+</body>
+</html>
